@@ -3,7 +3,6 @@
 // Channel: https://t.me/premium_channel_404
 ///////////////////////////////////////////////
 
-// ခွင့်ပြုထားသော Admin ID များ
 const ADMIN_IDS = [6998791194, 1273841502];
 
 export async function handleUpdate(update, env) {
@@ -14,45 +13,67 @@ export async function handleUpdate(update, env) {
     const userId = from.id;
     const chatType = chat.type;
 
-    // Cloudflare Environment Variables မှ Bot Token နှင့် API URL ကို ရယူခြင်း
     const BOT_TOKEN = env.BOT_TOKEN;
     const API_URL = env.API_URL;
 
-    // ၁။ Security Check: Private Chat နှင့် Admin ဖြစ်ရန် လိုအပ်သည်
     if (chatType !== 'private' || !ADMIN_IDS.includes(userId)) return;
 
     const commandText = text ? text.split(' ')[0].toLowerCase() : "";
-    const args = text ? text.split(/\s+/) : []; // Space အများကြီးပါလည်း ခွဲနိုင်အောင် Regex သုံးထားသည်
+    const args = text ? text.split(/\s+/) : [];
 
     try {
-        // --- Bot Menu (Commands List) Set လုပ်ရန် ---
+        // --- /start Command ---
+        if (commandText === '/start') {
+            const welcomeMsg = `<b>👋 Welcome To The Admin Panel!</b>\n` +
+                               `<b>━━━━━━━━━━━━━━━━</b>` +
+                               `ဤ Bot သည် VPN User များ စီမံရန်နှင့် Config Update ရန် ဖြစ်ပါသည်။\n\n` +
+                               `📌 <b>အသုံးပြုနိုင်သော Command များ:</b>\n` +
+                               `/add - User အသစ်ထည့်ရန်\n` +
+                               `/edit - သက်တမ်းပြင်ရန်\n` +
+                               `/del - User ဖျက်ရန်\n` +
+                               `/free - Free Config Update\n` +
+                               `/vip - VIP Config Update\n` +
+                               `/setmenu - Bot Menu ကို Update လုပ်ရန်`;
+            return await sendToTelegram(chatId, welcomeMsg, BOT_TOKEN);
+        }
+
+        // --- Bot Menu Set လုပ်ရန် ---
         if (commandText === '/setmenu') {
             await setBotCommands(BOT_TOKEN);
-            return await sendToTelegram(chatId, "✅ <b>Bot Menu (Command List) Updated!</b>\nခဏအကြာတွင် Menu ခလုတ် ပေါ်လာပါလိမ့်မည်။", BOT_TOKEN);
+            return await sendToTelegram(chatId, "✅ <b>Bot Menu Updated!</b>", BOT_TOKEN);
         }
 
-        // --- User Management: /add <hwid> <days> ---
-        if (commandText === '/add' && args.length === 3) {
+        // --- User Management: /add ---
+        if (commandText === '/add') {
+            if (args.length !== 3) {
+                return await sendToTelegram(chatId, "💡 <b>Usage:</b>\n<code>/add &lt;hwid&gt; &lt;days&gt;</code>\n\n<i>ဥပမာ: /add myhwid123 30</i>", BOT_TOKEN);
+            }
             const res = await fetch(`${API_URL}?action=add&hwid=${args[1]}&exp=${args[2]}`);
             const data = await res.json();
-            return await sendToTelegram(chatId, `<b>➕ Add User Result</b>\n\n<b>Status:</b> ${data.api_result?.status || 'Error'}\n<b>Message:</b> ${data.api_result?.message || 'No response'}`, BOT_TOKEN);
+            return await sendToTelegram(chatId, `<b>➕ Add User Result</b>\n\n<b>Status:</b> ${data.api_result?.status}\n<b>Message:</b> ${data.api_result?.message}`, BOT_TOKEN);
         }
 
-        // --- User Management: /edit <hwid> <days> ---
-        if (commandText === '/edit' && args.length === 3) {
+        // --- User Management: /edit ---
+        if (commandText === '/edit') {
+            if (args.length !== 3) {
+                return await sendToTelegram(chatId, "💡 <b>Usage:</b>\n<code>/edit &lt;hwid&gt; &lt;days&gt;</code>\n\n<i>ဥပမာ: /edit myhwid123 60</i>", BOT_TOKEN);
+            }
             const res = await fetch(`${API_URL}?action=edit&hwid=${args[1]}&exp=${args[2]}`);
             const data = await res.json();
-            return await sendToTelegram(chatId, `<b>📝 Edit User Result</b>\n\n<b>Status:</b> ${data.api_result?.status || 'Error'}\n<b>Message:</b> ${data.api_result?.message || 'No response'}`, BOT_TOKEN);
+            return await sendToTelegram(chatId, `<b>📝 Edit User Result</b>\n\n<b>Status:</b> ${data.api_result?.status}\n<b>Message:</b> ${data.api_result?.message}`, BOT_TOKEN);
         }
 
-        // --- User Management: /del <hwid> ---
-        if (commandText === '/del' && args.length === 2) {
+        // --- User Management: /del ---
+        if (commandText === '/del') {
+            if (args.length !== 2) {
+                return await sendToTelegram(chatId, "💡 <b>Usage:</b>\n<code>/del &lt;hwid&gt;</code>\n\n<i>ဥပမာ: /del myhwid123</i>", BOT_TOKEN);
+            }
             const res = await fetch(`${API_URL}?action=delete&hwid=${args[1]}`);
             const data = await res.json();
-            return await sendToTelegram(chatId, `<b>🗑️ Delete User Result</b>\n\n<b>Status:</b> ${data.api_result?.status || 'Error'}\n<b>Message:</b> ${data.api_result?.message || 'No response'}`, BOT_TOKEN);
+            return await sendToTelegram(chatId, `<b>🗑️ Delete User Result</b>\n\n<b>Status:</b> ${data.api_result?.status}\n<b>Message:</b> ${data.api_result?.message}`, BOT_TOKEN);
         }
 
-        // --- Config Update: /free သို့မဟုတ် /vip ---
+        // --- Config Update: /free / /vip ---
         if (commandText === '/free' || commandText === '/vip') {
             const status = (commandText === '/free') ? 'free' : 'vip';
             const targetFileName = (status === 'vip') ? 'config.mvgl' : 'config.json';
@@ -81,8 +102,7 @@ export async function handleUpdate(update, env) {
 
             const response = `<b>🚀 Config Updated (${status.toUpperCase()})</b>\n\n` +
                              `<b>Status:</b> ${data.api_result?.status || 'Success'}\n` +
-                             `<b>Server File:</b> <code>${targetFileName}</code>\n` +
-                             `<b>Content Size:</b> ${configContent.length} chars`;
+                             `<b>Server File:</b> <code>${targetFileName}</code>`;
             
             return await sendToTelegram(chatId, response, BOT_TOKEN);
         }
@@ -95,29 +115,24 @@ export async function handleUpdate(update, env) {
 async function setBotCommands(token) {
     const url = `https://api.telegram.org/bot${token}/setMyCommands`;
     const commands = [
-        { command: "add", description: "HWID နှင့် ရက်ပေါင်းထည့်ရန် (HWID 30)" },
-        { command: "edit", description: "သက်တမ်းပြင်ရန် (HWID 60)" },
-        { command: "del", description: "User ဖျက်ရန် (HWID)" },
-        { command: "free", description: "Free Config Update (Reply file/text)" },
-        { command: "vip", description: "VIP Config Update (Reply file/text)" }
+        { command: "start", description: "Bot ကိုစတင်ရန်" },
+        { command: "add", description: "HWID နှင့် ရက်ပေါင်းထည့်ရန်" },
+        { command: "edit", description: "သက်တမ်းပြင်ရန်" },
+        { command: "del", description: "User ဖျက်ရန်" },
+        { command: "free", description: "Free Config Update" },
+        { command: "vip", description: "VIP Config Update" }
     ];
-    await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ commands })
-    });
+    await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ commands }) });
 }
 
 async function downloadTelegramFile(fileId, token) {
     const fileRes = await fetch(`https://api.telegram.org/bot${token}/getFile?file_id=${fileId}`);
     const fileData = await fileRes.json();
-    const filePath = fileData.result.file_path;
-    const contentRes = await fetch(`https://api.telegram.org/file/bot${token}/${filePath}`);
+    const contentRes = await fetch(`https://api.telegram.org/file/bot${token}/${fileData.result.file_path}`);
     return await contentRes.text();
 }
 
 async function sendToTelegram(chat_id, text, token) {
-    // Developer Name ကို \ တစ်ခုတည်း ပေါ်အောင် ရေးသားထားသည်
     const footer = `\n\n--- 👤 <b>Developer Info</b> ---\n` +
                     `<b>Dev:</b> 404 \\ 2.0 🇲🇲\n` +
                     `<b>Channel:</b> <a href="https://t.me/premium_channel_404">Join Here</a>`;
