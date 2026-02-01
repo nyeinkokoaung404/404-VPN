@@ -1,3 +1,8 @@
+///////////////////////////////////////////////
+// Developer: 404 \ 2.0 🇲🇲
+// Channel: https://t.me/premium_channel_404
+///////////////////////////////////////////////
+
 // ခွင့်ပြုထားသော Admin ID များ
 const ADMIN_IDS = [6998791194, 1273841502];
 
@@ -9,6 +14,7 @@ export async function handleUpdate(update, env) {
     const userId = from.id;
     const chatType = chat.type;
 
+    // Cloudflare Environment Variables မှ Bot Token နှင့် API URL ကို ရယူခြင်း
     const BOT_TOKEN = env.BOT_TOKEN;
     const API_URL = env.API_URL;
 
@@ -16,7 +22,7 @@ export async function handleUpdate(update, env) {
     if (chatType !== 'private' || !ADMIN_IDS.includes(userId)) return;
 
     const commandText = text ? text.split(' ')[0].toLowerCase() : "";
-    const args = text ? text.split(' ') : [];
+    const args = text ? text.split(/\s+/) : []; // Space အများကြီးပါလည်း ခွဲနိုင်အောင် Regex သုံးထားသည်
 
     try {
         // --- Bot Menu (Commands List) Set လုပ်ရန် ---
@@ -29,21 +35,21 @@ export async function handleUpdate(update, env) {
         if (commandText === '/add' && args.length === 3) {
             const res = await fetch(`${API_URL}?action=add&hwid=${args[1]}&exp=${args[2]}`);
             const data = await res.json();
-            return await sendToTelegram(chatId, `<b>➕ Add User Result</b>\n\n<b>Status:</b> ${data.api_result.status}\n<b>Message:</b> ${data.api_result.message}`, BOT_TOKEN);
+            return await sendToTelegram(chatId, `<b>➕ Add User Result</b>\n\n<b>Status:</b> ${data.api_result?.status || 'Error'}\n<b>Message:</b> ${data.api_result?.message || 'No response'}`, BOT_TOKEN);
         }
 
         // --- User Management: /edit <hwid> <days> ---
         if (commandText === '/edit' && args.length === 3) {
             const res = await fetch(`${API_URL}?action=edit&hwid=${args[1]}&exp=${args[2]}`);
             const data = await res.json();
-            return await sendToTelegram(chatId, `<b>📝 Edit User Result</b>\n\n<b>Status:</b> ${data.api_result.status}\n<b>Message:</b> ${data.api_result.message}`, BOT_TOKEN);
+            return await sendToTelegram(chatId, `<b>📝 Edit User Result</b>\n\n<b>Status:</b> ${data.api_result?.status || 'Error'}\n<b>Message:</b> ${data.api_result?.message || 'No response'}`, BOT_TOKEN);
         }
 
         // --- User Management: /del <hwid> ---
         if (commandText === '/del' && args.length === 2) {
             const res = await fetch(`${API_URL}?action=delete&hwid=${args[1]}`);
             const data = await res.json();
-            return await sendToTelegram(chatId, `<b>🗑️ Delete User Result</b>\n\n<b>Status:</b> ${data.api_result.status}\n<b>Message:</b> ${data.api_result.message}`, BOT_TOKEN);
+            return await sendToTelegram(chatId, `<b>🗑️ Delete User Result</b>\n\n<b>Status:</b> ${data.api_result?.status || 'Error'}\n<b>Message:</b> ${data.api_result?.message || 'No response'}`, BOT_TOKEN);
         }
 
         // --- Config Update: /free သို့မဟုတ် /vip ---
@@ -52,17 +58,11 @@ export async function handleUpdate(update, env) {
             const targetFileName = (status === 'vip') ? 'config.mvgl' : 'config.json';
             let configContent = "";
 
-            // File ကို Reply ပြန်ထားလျှင်
             if (reply_to_message && reply_to_message.document) {
-                const fileId = reply_to_message.document.file_id;
-                configContent = await downloadTelegramFile(fileId, BOT_TOKEN);
-            } 
-            // စာသားကို Reply ပြန်ထားလျှင်
-            else if (reply_to_message && reply_to_message.text) {
+                configContent = await downloadTelegramFile(reply_to_message.document.file_id, BOT_TOKEN);
+            } else if (reply_to_message && reply_to_message.text) {
                 configContent = reply_to_message.text;
-            } 
-            // Command နှင့်အတူ စာသားတွဲပို့လျှင်
-            else if (args.length > 1) {
+            } else if (args.length > 1) {
                 configContent = args.slice(1).join(' ');
             }
 
@@ -80,7 +80,7 @@ export async function handleUpdate(update, env) {
             const data = await res.json();
 
             const response = `<b>🚀 Config Updated (${status.toUpperCase()})</b>\n\n` +
-                             `<b>Status:</b> ${data.api_result.status}\n` +
+                             `<b>Status:</b> ${data.api_result?.status || 'Success'}\n` +
                              `<b>Server File:</b> <code>${targetFileName}</code>\n` +
                              `<b>Content Size:</b> ${configContent.length} chars`;
             
@@ -92,7 +92,6 @@ export async function handleUpdate(update, env) {
     }
 }
 
-// Telegram Menu Commands များကို Set လုပ်ပေးသည့် Function
 async function setBotCommands(token) {
     const url = `https://api.telegram.org/bot${token}/setMyCommands`;
     const commands = [
@@ -102,7 +101,6 @@ async function setBotCommands(token) {
         { command: "free", description: "Free Config Update (Reply file/text)" },
         { command: "vip", description: "VIP Config Update (Reply file/text)" }
     ];
-
     await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -110,7 +108,6 @@ async function setBotCommands(token) {
     });
 }
 
-// File Download လုပ်သည့် Function
 async function downloadTelegramFile(fileId, token) {
     const fileRes = await fetch(`https://api.telegram.org/bot${token}/getFile?file_id=${fileId}`);
     const fileData = await fileRes.json();
@@ -119,11 +116,11 @@ async function downloadTelegramFile(fileId, token) {
     return await contentRes.text();
 }
 
-// Message ပေးပို့သည့် Function
 async function sendToTelegram(chat_id, text, token) {
+    // Developer Name ကို \ တစ်ခုတည်း ပေါ်အောင် ရေးသားထားသည်
     const footer = `\n\n--- 👤 <b>Developer Info</b> ---\n` +
-                   `<b>Dev:</b> 404 \\ 2.0 🇲🇲\n` +
-                   `<b>Channel:</b> <a href="https://t.me/premium_channel_404">Join Here</a>`;
+                    `<b>Dev:</b> 404 \\ 2.0 🇲🇲\n` +
+                    `<b>Channel:</b> <a href="https://t.me/premium_channel_404">Join Here</a>`;
 
     const url = `https://api.telegram.org/bot${token}/sendMessage`;
     await fetch(url, {
