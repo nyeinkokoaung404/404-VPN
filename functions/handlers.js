@@ -25,7 +25,7 @@ export async function handleUpdate(update, env) {
         // --- /start Command ---
         if (commandText === '/start') {
             const welcomeMsg = `<b>👋 Welcome To The Admin Panel!</b>\n` +
-                               `<b>━━━━━━━━━━━━━━━━</b>` +
+                               `<b>━━━━━━━━━━━━━━━━</b>\n` +
                                `ဤ Bot သည် VPN User များ စီမံရန်နှင့် Config Update ရန် ဖြစ်ပါသည်။\n\n` +
                                `📌 <b>အသုံးပြုနိုင်သော Command များ:</b>\n` +
                                `/add - User အသစ်ထည့်ရန်\n` +
