@@ -22,58 +22,50 @@ export async function handleUpdate(update, env) {
     const args = text ? text.split(/\s+/) : [];
 
     try {
-        // --- /start Command ---
         if (commandText === '/start') {
-            const welcomeMsg = `<b>👋 Welcome To The Admin Panel!</b>\n` +
+            const welcomeMsg = `<b>👋 Welcome Admin!</b>\n` +
                                `<b>━━━━━━━━━━━━━━━━</b>\n` +
-                               `ဤ Bot သည် VPN User များ စီမံရန်နှင့် Config Update ရန် ဖြစ်ပါသည်။\n\n` +
                                `📌 <b>အသုံးပြုနိုင်သော Command များ:</b>\n` +
                                `/add - User အသစ်ထည့်ရန်\n` +
                                `/edit - သက်တမ်းပြင်ရန်\n` +
                                `/del - User ဖျက်ရန်\n` +
                                `/free - Free Config Update\n` +
                                `/vip - VIP Config Update\n` +
-                               `/setmenu - Bot Menu ကို Update လုပ်ရန်`;
+                               `/setmenu - Bot Menu Update လုပ်ရန်`;
             return await sendToTelegram(chatId, welcomeMsg, BOT_TOKEN);
         }
 
-        // --- Bot Menu Set လုပ်ရန် ---
         if (commandText === '/setmenu') {
             await setBotCommands(BOT_TOKEN);
             return await sendToTelegram(chatId, "✅ <b>Bot Menu Updated!</b>", BOT_TOKEN);
         }
 
-        // --- User Management: /add ---
-        if (commandText === '/add') {
-            if (args.length !== 3) {
-                return await sendToTelegram(chatId, "💡 <b>Usage:</b>\n<code>/add &lt;hwid&gt; &lt;days&gt;</code>\n\n<i>ဥပမာ: /add myhwid123 30</i>", BOT_TOKEN);
+        // --- User Management Logic ---
+        if (['/add', '/edit', '/del'].includes(commandText)) {
+            // Usage Check
+            if ((commandText === '/del' && args.length !== 2) || (['/add', '/edit'].includes(commandText) && args.length !== 3)) {
+                const usage = commandText === '/del' ? `<code>${commandText} &lt;hwid&gt;</code>` : `<code>${commandText} &lt;hwid&gt; &lt;days&gt;</code>`;
+                return await sendToTelegram(chatId, `💡 <b>Usage:</b>\n${usage}`, BOT_TOKEN);
             }
-            const res = await fetch(`${API_URL}?action=add&hwid=${args[1]}&exp=${args[2]}`);
+
+            // Loading Message ပြသခြင်း
+            const loadingId = await sendLoading(chatId, BOT_TOKEN);
+            
+            let url = `${API_URL}?hwid=${args[1]}`;
+            if (commandText === '/add') url += `&action=add&exp=${args[2]}`;
+            if (commandText === '/edit') url += `&action=edit&exp=${args[2]}`;
+            if (commandText === '/del') url += `&action=delete`;
+
+            const res = await fetch(url);
             const data = await res.json();
-            return await sendToTelegram(chatId, `<b>➕ Add User Result</b>\n\n<b>Status:</b> ${data.api_result?.status}\n<b>Message:</b> ${data.api_result?.message}`, BOT_TOKEN);
+            
+            // Loading ကိုဖျက်ပြီး Result ပြခြင်း
+            await deleteMessage(chatId, loadingId, BOT_TOKEN);
+            const title = commandText === '/add' ? "➕ Add User" : commandText === '/edit' ? "📝 Edit User" : "🗑️ Delete User";
+            return await sendToTelegram(chatId, `<b>${title} Result</b>\n\n<b>Status:</b> ${data.api_result?.status}\n<b>Message:</b> ${data.api_result?.message}`, BOT_TOKEN);
         }
 
-        // --- User Management: /edit ---
-        if (commandText === '/edit') {
-            if (args.length !== 3) {
-                return await sendToTelegram(chatId, "💡 <b>Usage:</b>\n<code>/edit &lt;hwid&gt; &lt;days&gt;</code>\n\n<i>ဥပမာ: /edit myhwid123 60</i>", BOT_TOKEN);
-            }
-            const res = await fetch(`${API_URL}?action=edit&hwid=${args[1]}&exp=${args[2]}`);
-            const data = await res.json();
-            return await sendToTelegram(chatId, `<b>📝 Edit User Result</b>\n\n<b>Status:</b> ${data.api_result?.status}\n<b>Message:</b> ${data.api_result?.message}`, BOT_TOKEN);
-        }
-
-        // --- User Management: /del ---
-        if (commandText === '/del') {
-            if (args.length !== 2) {
-                return await sendToTelegram(chatId, "💡 <b>Usage:</b>\n<code>/del &lt;hwid&gt;</code>\n\n<i>ဥပမာ: /del myhwid123</i>", BOT_TOKEN);
-            }
-            const res = await fetch(`${API_URL}?action=delete&hwid=${args[1]}`);
-            const data = await res.json();
-            return await sendToTelegram(chatId, `<b>🗑️ Delete User Result</b>\n\n<b>Status:</b> ${data.api_result?.status}\n<b>Message:</b> ${data.api_result?.message}`, BOT_TOKEN);
-        }
-
-        // --- Config Update: /free / /vip ---
+        // --- Config Update Logic ---
         if (commandText === '/free' || commandText === '/vip') {
             const status = (commandText === '/free') ? 'free' : 'vip';
             const targetFileName = (status === 'vip') ? 'config.mvgl' : 'config.json';
@@ -88,8 +80,10 @@ export async function handleUpdate(update, env) {
             }
 
             if (!configContent) {
-                return await sendToTelegram(chatId, `⚠️ <i>ကျေးဇူးပြု၍ <b>${targetFileName}</b> အတွက် Config စာသားထည့်ပါ သို့မဟုတ် ဖိုင်/စာသားကို Reply ပြန်ပါ။</i>`, BOT_TOKEN);
+                return await sendToTelegram(chatId, `⚠️ <i>ကျေးဇူးပြု၍ <b>${targetFileName}</b> အတွက် Config စာသားထည့်ပါ။</i>`, BOT_TOKEN);
             }
+
+            const loadingId = await sendLoading(chatId, BOT_TOKEN);
 
             const formData = new FormData();
             formData.append('config_data', configContent);
@@ -100,9 +94,10 @@ export async function handleUpdate(update, env) {
             });
             const data = await res.json();
 
+            await deleteMessage(chatId, loadingId, BOT_TOKEN);
             const response = `<b>🚀 Config Updated (${status.toUpperCase()})</b>\n\n` +
-                             `<b>Status:</b> ${data.api_result?.status || 'Success'}\n` +
-                             `<b>Server File:</b> <code>${targetFileName}</code>`;
+                             `<b>Status:</b> ${data.api_result?.status}\n` +
+                             `<b>Message:</b> ${data.api_result?.message}`;
             
             return await sendToTelegram(chatId, response, BOT_TOKEN);
         }
@@ -112,6 +107,60 @@ export async function handleUpdate(update, env) {
     }
 }
 
+// Loading Message ပို့သည့် Function
+async function sendLoading(chatId, token) {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text: "⏳ <b>Loading... Please wait...</b>", parse_mode: "HTML" })
+    });
+    const data = await res.json();
+    return data.result.message_id;
+}
+
+// Message ပြန်ဖျက်သည့် Function
+async function deleteMessage(chatId, messageId, token) {
+    await fetch(`https://api.telegram.org/bot${token}/deleteMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, message_id: messageId })
+    });
+}
+
+function convertToHTML(text) {
+    if (!text) return "";
+    return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/```(?:[a-zA-Z]+)?\n([\s\S]*?)```/g, "<pre><code>$1</code></pre>")
+        .replace(/\*\*(.*?)\*\*/g, "<b>$1</b>")
+        .replace(/\*(.*?)\*/g, "<i>$1</i>")
+        .replace(/`(.*?)`/g, "<code>$1</code>")
+        .replace(/^#{1,6}\s+(.*)$/gim, "<b>$1</b>")
+        .replace(/^\s*[-*]\s+/gm, "• ");
+}
+
+async function sendToTelegram(chat_id, text, token) {
+    // text ကို ပို့ခါနီးမှာ convertToHTML ဖြင့် စစ်ထုတ်သည်
+    const formattedBody = convertToHTML(text);
+    const footer = `\n\n--- 👤 <b>Developer Info</b> ---\n` +
+                    `<b>Dev:</b> 404 \\ 2.0 🇲🇲\n` +
+                    `<b>Channel:</b> <a href="https://t.me/premium_channel_404">Join Here</a>`;
+
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+            chat_id, 
+            text: formattedBody + footer, 
+            parse_mode: "HTML",
+            disable_web_page_preview: true 
+        })
+    });
+}
+
+// ... (downloadTelegramFile နှင့် setBotCommands တို့သည် ယခင်အတိုင်းဖြစ်သည်)
 async function setBotCommands(token) {
     const url = `https://api.telegram.org/bot${token}/setMyCommands`;
     const commands = [
@@ -130,22 +179,4 @@ async function downloadTelegramFile(fileId, token) {
     const fileData = await fileRes.json();
     const contentRes = await fetch(`https://api.telegram.org/file/bot${token}/${fileData.result.file_path}`);
     return await contentRes.text();
-}
-
-async function sendToTelegram(chat_id, text, token) {
-    const footer = `\n\n--- 👤 <b>Developer Info</b> ---\n` +
-                    `<b>Dev:</b> 404 \\ 2.0 🇲🇲\n` +
-                    `<b>Channel:</b> <a href="https://t.me/premium_channel_404">Join Here</a>`;
-
-    const url = `https://api.telegram.org/bot${token}/sendMessage`;
-    await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-            chat_id, 
-            text: text + footer, 
-            parse_mode: "HTML",
-            disable_web_page_preview: true 
-        })
-    });
 }
