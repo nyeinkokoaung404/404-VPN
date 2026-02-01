@@ -1,0 +1,139 @@
+// ခွင့်ပြုထားသော Admin ID များ
+const ADMIN_IDS = [6998791194, 1273841502];
+
+export async function handleUpdate(update, env) {
+    if (!update.message) return;
+
+    const { text, chat, from, reply_to_message } = update.message;
+    const chatId = chat.id;
+    const userId = from.id;
+    const chatType = chat.type;
+
+    const BOT_TOKEN = env.BOT_TOKEN;
+    const API_URL = env.API_URL;
+
+    // ၁။ Security Check: Private Chat နှင့် Admin ဖြစ်ရန် လိုအပ်သည်
+    if (chatType !== 'private' || !ADMIN_IDS.includes(userId)) return;
+
+    const commandText = text ? text.split(' ')[0].toLowerCase() : "";
+    const args = text ? text.split(' ') : [];
+
+    try {
+        // --- Bot Menu (Commands List) Set လုပ်ရန် ---
+        if (commandText === '/setmenu') {
+            await setBotCommands(BOT_TOKEN);
+            return await sendToTelegram(chatId, "✅ <b>Bot Menu (Command List) Updated!</b>\nခဏအကြာတွင် Menu ခလုတ် ပေါ်လာပါလိမ့်မည်။", BOT_TOKEN);
+        }
+
+        // --- User Management: /add <hwid> <days> ---
+        if (commandText === '/add' && args.length === 3) {
+            const res = await fetch(`${API_URL}?action=add&hwid=${args[1]}&exp=${args[2]}`);
+            const data = await res.json();
+            return await sendToTelegram(chatId, `<b>➕ Add User Result</b>\n\n<b>Status:</b> ${data.api_result.status}\n<b>Message:</b> ${data.api_result.message}`, BOT_TOKEN);
+        }
+
+        // --- User Management: /edit <hwid> <days> ---
+        if (commandText === '/edit' && args.length === 3) {
+            const res = await fetch(`${API_URL}?action=edit&hwid=${args[1]}&exp=${args[2]}`);
+            const data = await res.json();
+            return await sendToTelegram(chatId, `<b>📝 Edit User Result</b>\n\n<b>Status:</b> ${data.api_result.status}\n<b>Message:</b> ${data.api_result.message}`, BOT_TOKEN);
+        }
+
+        // --- User Management: /del <hwid> ---
+        if (commandText === '/del' && args.length === 2) {
+            const res = await fetch(`${API_URL}?action=delete&hwid=${args[1]}`);
+            const data = await res.json();
+            return await sendToTelegram(chatId, `<b>🗑️ Delete User Result</b>\n\n<b>Status:</b> ${data.api_result.status}\n<b>Message:</b> ${data.api_result.message}`, BOT_TOKEN);
+        }
+
+        // --- Config Update: /free သို့မဟုတ် /vip ---
+        if (commandText === '/free' || commandText === '/vip') {
+            const status = (commandText === '/free') ? 'free' : 'vip';
+            const targetFileName = (status === 'vip') ? 'config.mvgl' : 'config.json';
+            let configContent = "";
+
+            // File ကို Reply ပြန်ထားလျှင်
+            if (reply_to_message && reply_to_message.document) {
+                const fileId = reply_to_message.document.file_id;
+                configContent = await downloadTelegramFile(fileId, BOT_TOKEN);
+            } 
+            // စာသားကို Reply ပြန်ထားလျှင်
+            else if (reply_to_message && reply_to_message.text) {
+                configContent = reply_to_message.text;
+            } 
+            // Command နှင့်အတူ စာသားတွဲပို့လျှင်
+            else if (args.length > 1) {
+                configContent = args.slice(1).join(' ');
+            }
+
+            if (!configContent) {
+                return await sendToTelegram(chatId, `⚠️ <i>ကျေးဇူးပြု၍ <b>${targetFileName}</b> အတွက် Config စာသားထည့်ပါ သို့မဟုတ် ဖိုင်/စာသားကို Reply ပြန်ပါ။</i>`, BOT_TOKEN);
+            }
+
+            const formData = new FormData();
+            formData.append('config_data', configContent);
+
+            const res = await fetch(`${API_URL}?action=update_config&status=${status}`, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+
+            const response = `<b>🚀 Config Updated (${status.toUpperCase()})</b>\n\n` +
+                             `<b>Status:</b> ${data.api_result.status}\n` +
+                             `<b>Server File:</b> <code>${targetFileName}</code>\n` +
+                             `<b>Content Size:</b> ${configContent.length} chars`;
+            
+            return await sendToTelegram(chatId, response, BOT_TOKEN);
+        }
+
+    } catch (e) {
+        await sendToTelegram(chatId, `<b>❌ System Error:</b> <code>${e.message}</code>`, BOT_TOKEN);
+    }
+}
+
+// Telegram Menu Commands များကို Set လုပ်ပေးသည့် Function
+async function setBotCommands(token) {
+    const url = `https://api.telegram.org/bot${token}/setMyCommands`;
+    const commands = [
+        { command: "add", description: "HWID နှင့် ရက်ပေါင်းထည့်ရန် (HWID 30)" },
+        { command: "edit", description: "သက်တမ်းပြင်ရန် (HWID 60)" },
+        { command: "del", description: "User ဖျက်ရန် (HWID)" },
+        { command: "free", description: "Free Config Update (Reply file/text)" },
+        { command: "vip", description: "VIP Config Update (Reply file/text)" }
+    ];
+
+    await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ commands })
+    });
+}
+
+// File Download လုပ်သည့် Function
+async function downloadTelegramFile(fileId, token) {
+    const fileRes = await fetch(`https://api.telegram.org/bot${token}/getFile?file_id=${fileId}`);
+    const fileData = await fileRes.json();
+    const filePath = fileData.result.file_path;
+    const contentRes = await fetch(`https://api.telegram.org/file/bot${token}/${filePath}`);
+    return await contentRes.text();
+}
+
+// Message ပေးပို့သည့် Function
+async function sendToTelegram(chat_id, text, token) {
+    const footer = `\n\n--- 👤 <b>Developer Info</b> ---\n` +
+                   `<b>Dev:</b> 404 \\ 2.0 🇲🇲\n` +
+                   `<b>Channel:</b> <a href="https://t.me/premium_channel_404">Join Here</a>`;
+
+    const url = `https://api.telegram.org/bot${token}/sendMessage`;
+    await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+            chat_id, 
+            text: text + footer, 
+            parse_mode: "HTML",
+            disable_web_page_preview: true 
+        })
+    });
+}
